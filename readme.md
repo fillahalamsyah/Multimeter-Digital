@@ -5,3 +5,8 @@
 ## Arduino Code
 
 ## Python Code
+
+Install requirements file using command line
+```bash
+pip install -r requirements.txt
+```
