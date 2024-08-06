@@ -30,24 +30,29 @@ def get_ports():
 serial_port = serial.Serial(get_ports(), 9600)
 serial_port.reset_input_buffer()
 
-def start_plot():
-    global plotting, df, paused
-    plotting = True
-    paused = False
-    df = pd.DataFrame(columns=columns)
-    reset_plot()
 
-def stop_plot():
-    global plotting
-    plotting = False
+def toggle_start_stop():
+    global plotting, df, paused
+    plotting = not plotting
+    if plotting:
+        paused = False
+        start_stop_button.configure(text="Stop", fg_color="red")
+        info_label.configure(text="Start Plotting")
+        df = pd.DataFrame(columns=columns)
+        reset_plot()
+    else:
+        start_stop_button.configure(text="Start", fg_color="#1F6AA5")
+        info_label.configure(text="Stop Plotting")
 
 def toggle_pause_resume():
     global paused
     paused = not paused
     if paused:
         pause_resume_button.configure(text="Resume")
+        info_label.configure(text="Plotting Paused")
     else:
         pause_resume_button.configure(text="Pause")
+        info_label.configure(text="Plotting")
 
 def set_plot_format(ax, title, ylabel):
     ax.set_xlabel("Waktu")
@@ -60,6 +65,7 @@ def set_plot_format(ax, title, ylabel):
 def plot_multimeter():
     global columns, df, plotting, serial_port, paused
     if plotting and not paused:
+        info_label.configure(text="Plotting")
         try:
             value_sensor = serial_port.readline().decode().rstrip().split('\t')
             if value_sensor != '':
@@ -81,18 +87,21 @@ def plot_multimeter():
                 df = pd.concat([df, new_row], ignore_index=True)
 
             # ================== Amperemeter ========================
+            value_ampere.configure(text=str(df["Arus (mA)"].iloc[-1]) + " mA")
             ax_ampere.clear()
             ax_ampere.plot(df['Waktu'], df["Arus (mA)"], label="Arus (mA)")
             set_plot_format(ax_ampere, "Grafik I - t", "Arus (mA)")
             canvas_ampere.draw_idle()
 
             # ================== Voltmeter ========================
+            value_volt.configure(text=str(df["Tegangan (V)"].iloc[-1]) +" V")
             ax_volt.clear()
             ax_volt.plot(df['Waktu'], df["Tegangan (V)"], label="Tegangan (V)")
             set_plot_format(ax_volt, "Grafik V - t", "Tegangan (V)")
             canvas_volt.draw_idle()
 
             # ================== Ohmmeter ========================
+            value_resistance.configure(text=str(df["Resistansi (Ohm)"].iloc[-1])+ " Ohm")
             ax_resistance.clear()
             ax_resistance.plot(df['Waktu'], df["Resistansi (Ohm)"], label="Resistansi (Ohm)")
             set_plot_format(ax_resistance, "Grafik R - t", "Resistansi (Ohm)")
@@ -129,7 +138,7 @@ root.geometry("550x700")  # Setting ukuran tampilan
 
 frame_root = ctk.CTkFrame(root)
 frame_root.grid(column=0, row=0, sticky="nsew", padx=10, pady=10)
-frame_root.rowconfigure([0, 1, 2, 3], weight=1)
+#frame_root.rowconfigure([0, 1, 2, 3], weight=1)
 
 title_frame = ctk.CTkFrame(frame_root)
 title_frame.grid(column=0, row=0, sticky="nsew")
@@ -145,14 +154,15 @@ f1 = tabview.add('Amperemeter')
 f2 = tabview.add('Voltmeter')
 f3 = tabview.add('Ohmmeter')
 
-
 # ================== Amperemeter ========================
 frame_ampere = ctk.CTkFrame(f1)
 frame_ampere.grid(column=0, row=0, sticky="nsew")
 fig_ampere, ax_ampere = plt.subplots(constrained_layout=True)
 canvas_ampere = FigureCanvasTkAgg(fig_ampere, master=frame_ampere)
 canvas_widget_ampere = canvas_ampere.get_tk_widget()
-canvas_widget_ampere.grid(row=1, column=0, sticky="nsew")
+canvas_widget_ampere.grid(row=0, column=0, sticky="nsew")
+value_ampere = ctk.CTkLabel(frame_ampere, text="Sensor Value", font=ctk.CTkFont('calibri', 16))
+value_ampere.grid(row=1, column=0, sticky="ns", pady=5)
 
 # ================== Voltmeter ========================
 frame_volt = ctk.CTkFrame(f2)
@@ -160,7 +170,9 @@ frame_volt.grid(column=1, row=0, sticky="nsew")
 fig_volt, ax_volt = plt.subplots(constrained_layout=True)
 canvas_volt = FigureCanvasTkAgg(fig_volt, master=frame_volt)
 canvas_widget_volt = canvas_volt.get_tk_widget()
-canvas_widget_volt.grid(row=1, column=0, sticky="nsew")
+canvas_widget_volt.grid(row=0, column=0, sticky="nsew")
+value_volt = ctk.CTkLabel(frame_volt, text="Sensor Value", font=ctk.CTkFont('calibri', 16))
+value_volt.grid(row=1, column=0, sticky="ns", pady=5)
 
 # ================== Ohmmeter ========================
 frame_resistance = ctk.CTkFrame(f3)
@@ -168,30 +180,38 @@ frame_resistance.grid(column=2, row=0, sticky="nsew")
 fig_resistance, ax_resistance = plt.subplots(constrained_layout=True)
 canvas_resistance = FigureCanvasTkAgg(fig_resistance, master=frame_resistance)
 canvas_widget_resistance = canvas_resistance.get_tk_widget()
-canvas_widget_resistance.grid(row=1, column=0, sticky="nsew")
+canvas_widget_resistance.grid(row=0, column=0, sticky="nsew")
+value_resistance = ctk.CTkLabel(frame_resistance, text="Sensor Value", font=ctk.CTkFont('calibri', 16))
+value_resistance.grid(row=1, column=0, sticky="ns", pady=5)
 
 reset_plot()
 
-button_frame = ctk.CTkFrame(frame_root)
+button_frame = ctk.CTkFrame(frame_root, width=600)
 button_frame.grid(column=0, row=2, sticky="nsew", padx=10, pady=10)
 button_frame.rowconfigure(0, weight=1)
-button_frame.columnconfigure([0, 1, 2], weight=1)
+button_frame.columnconfigure([0, 1, 2, 3], weight=1)
 
-start_button = ctk.CTkButton(button_frame, text="Start", command=start_plot)
-start_button.grid(row=0, column=0,sticky="nsew", padx=10)
-
-stop_button = ctk.CTkButton(button_frame, text="Stop", command=stop_plot)
-stop_button.grid(row=0, column=1, sticky="nsew", padx=10)
-
+start_stop_button = ctk.CTkButton(button_frame, text="Start", command=toggle_start_stop)
+start_stop_button.grid(row=0, column=0,sticky="nsew", padx=10)
 pause_resume_button = ctk.CTkButton(button_frame, text="Pause", command=toggle_pause_resume)
-pause_resume_button.grid(row=0, column=2, sticky="nsew", padx=10)
+pause_resume_button.grid(row=0, column=1, sticky="nsew", padx=10)
+reset_button = ctk.CTkButton(button_frame, text="Reset", command=reset_plot)
+reset_button.grid(row=0, column=2, sticky="nsew", padx=10)
 
 data_frame = ctk.CTkFrame(frame_root)
 data_frame.grid(column=0, row=4, sticky="nsew", padx=10, pady=10)
 data_frame.grid_rowconfigure([0, 1], weight=1)
 data_frame.grid_columnconfigure(0, weight=1)
+
 value_label = ctk.CTkLabel(data_frame, text="Sensor Value", font=ctk.CTkFont('calibri', 16))
 value_label.grid(row=0, column=0, sticky="ns")
+
+info_frame = ctk.CTkFrame(frame_root)
+info_frame.grid(column=0, row=4, sticky="nsew", padx=10, pady=10)
+info_frame.grid_rowconfigure([0, 1], weight=1)
+info_frame.grid_columnconfigure(0, weight=1)
+info_label = ctk.CTkLabel(info_frame, text="Port", font=ctk.CTkFont('calibri', 16))
+info_label.grid(row=1, column=0, sticky="ns")
 
 root.after(100, plot_multimeter)
 root.mainloop()
