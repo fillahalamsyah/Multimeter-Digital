@@ -10,3 +10,6 @@ Install requirements file using command line
 ```bash
 pip install -r requirements.txt
 ```
+
+App View
+![](https://github.com/FillahAlamsyah/Multimeter-Digital/blob/main/images/data_view.png./images/data-view.png)
