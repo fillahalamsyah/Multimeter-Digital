@@ -12,4 +12,5 @@ pip install -r requirements.txt
 ```
 
 App View
-![](https://github.com/FillahAlamsyah/Multimeter-Digital/blob/main/images/data_view.png./images/data-view.png)
+![Plot Tab](https://github.com/FillahAlamsyah/Multimeter-Digital/blob/main/images/data_view.png./images/plot-view.png)
+![Data Tab](https://github.com/FillahAlamsyah/Multimeter-Digital/blob/main/images/data_view.png./images/data-view.png)
