@@ -1,16 +1,11 @@
 import customtkinter as ctk
-from CTkTable import *
+from CTkTable import CTkTable
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import pandas as pd
-import time
 import serial
 from serial.tools import list_ports
-import logging
-
-# Set up logging
-logging.basicConfig(level=logging.INFO)
 
 # Global variables
 columns = ["Waktu (t)", "Arus (mA)", "Tegangan (V)", "Resistansi (Ohm)"]
@@ -38,17 +33,14 @@ def connect_to_arduino():
             return True
     except PermissionError as e:
         if e.errno == 13:  # Access is denied error
-            logging.error(f"Permission Error: {e}")
             Arduino_label.configure(text="Akses Ditolak, coba lagi atau periksa perangkat.")
         serial_port = None
         return False
-    except serial.SerialException as e:
-        logging.error(f"Serial Error: {e}")
+    except serial.SerialException:
         Arduino_label.configure(text="Kesalahan Serial, coba lagi atau periksa perangkat.")
         serial_port = None
         return False
-    except Exception as e:
-        logging.error(f"Unexpected Error: {e}")
+    except Exception:
         Arduino_label.configure(text="Kesalahan Tak Terduga, coba lagi.")
         serial_port = None
         return False
@@ -59,7 +51,6 @@ def update_arduino_state():
     else:
         Arduino_label.configure(text="Arduino Terputus. Mencoba menghubungkan kembali...")
         if not connect_to_arduino():
-            logging.info("Gagal menghubungkan kembali. Memeriksa kembali dalam 5 detik.")
             root.after(5000, update_arduino_state)
 
 # --- Plotting functions ---
@@ -78,11 +69,7 @@ def set_plot_format(ax, title, xlabel, ylabel, label, reset=False):
 
 def add_data():
     global df_data, df
-    if df_data.empty:
-        df_data = df.copy()
-    else:
-        df_data = pd.concat([df_data, df], ignore_index=True)
-
+    df_data = pd.concat([df_data, df], ignore_index=True) if not df_data.empty else df.copy()
     update_plots()
     data_percobaan = df_data.values.tolist()
     data_percobaan.insert(0, columns)
@@ -115,7 +102,6 @@ def plot_multimeter():
                 table_now.update_values(values)
 
         except Exception as e:
-            logging.error(f"Error in plot_multimeter: {e}")
             Arduino_label.configure(text=f"{e}")
             serial_port = None
 
@@ -192,12 +178,11 @@ def initialize_plot_frame():
     frame_table = ctk.CTkFrame(f4)
     frame_table.grid(column=0, row=0, sticky="nsew")
     global table
-    table = CTkTable(master=frame_table,values=[columns],header_color="dark blue",width=128,padx=0,row=10)
+    table = CTkTable(master=frame_table, values=[columns], header_color="dark blue", width=128, padx=0, row=10)
     table.grid(column=0, row=0, sticky="nsew")
 
     export_button = ctk.CTkButton(frame_table, text="Ekspor Data", command=export_data)
     export_button.grid(column=0, row=1, sticky="nsew", padx=10, pady=10)
-
 
 def create_plot_frame(tab_name):
     frame = ctk.CTkFrame(tab_name)
@@ -232,6 +217,7 @@ def toggle_pause_resume():
 
 # --- Main Program ---
 root = ctk.CTk()
+root.title("Multimeter Digital Arduino")
 frame_root = ctk.CTkFrame(root)
 frame_root.grid(row=0, column=0, sticky="nsew")
 root.geometry("540x700")
