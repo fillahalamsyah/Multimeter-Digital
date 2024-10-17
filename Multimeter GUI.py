@@ -6,9 +6,10 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import pandas as pd
 import serial
 from serial.tools import list_ports
+import openpyxl
 
 # Global variables
-columns = ["Waktu (t)", "Arus (A)", "Tegangan (V)", "Resistansi (Ohm)"]
+columns = ["Arus (A)", "Tegangan (V)", "Resistansi (Ohm)"]
 df = pd.DataFrame(columns=columns) # Dataframe untuk menyimpan data saat ini
 df_all = pd.DataFrame(columns=columns) # Dataframe untuk menyimpan semua data percobaan
 df_data = pd.DataFrame(columns=columns) # Dataframe untuk menyimpan data percobaan saat ini
@@ -48,15 +49,8 @@ def update_arduino_state():
 # --- Plotting functions ---
 def set_plot_format(ax, title, xlabel, ylabel, label, reset=False):
     global df_data, df, df_all
-
     ax.clear()
-
-    if title == "Grafik (V,I,R)-t":
-        # Plot grafik V-I-R dengan sumbu x waktu (t) dan sumbu y V, I, R
-        ax.plot([[],[],[]], [[],[],[]]) if reset else ax.plot(df_all[xlabel],df_all.iloc[:, 1:], label=df_all.columns[1:])
-    else:
-        ax.plot([], [], label=label) if reset else ax.plot(df_data[xlabel], df_data[ylabel], label=label)
-
+    ax.plot([], [], label=label) if reset else ax.plot(df_data[xlabel], df_data[ylabel], label=label)
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
     ax.set_title(title)
@@ -76,13 +70,9 @@ def add_data():
     table.update_values(data_percobaan)
 
 def update_plots():
-    # set_plot_format(ax_all, "Grafik (V,I,R)-t", columns[0], columns[1], columns[2])
-    # canvas_all.draw_idle()
-
-    #set_plot_format(ax_all, "Grafik (V,I,R)-t", columns[0], "Nilai", columns[1:])
-    set_plot_format(ax_ampere, "Grafik V-R", columns[2], columns[3], columns[1])
-    set_plot_format(ax_volt, "Grafik I-R", columns[1], columns[3], columns[2])
-    set_plot_format(ax_resistance, "Grafik V-I", columns[2], columns[1], columns[3])
+    set_plot_format(ax_ampere, "Grafik V-R", columns[1], columns[2], columns[0])
+    set_plot_format(ax_volt, "Grafik I-R", columns[0], columns[2], columns[1])
+    set_plot_format(ax_resistance, "Grafik V-I", columns[1], columns[0], columns[2])
     
     canvas_ampere.draw_idle()
     canvas_volt.draw_idle()
@@ -94,50 +84,58 @@ def plot_multimeter():
         try:
             value_sensor = serial_port.readline().decode().rstrip().split('\t')
             if value_sensor:
-                value_sensor = list(map(float, value_sensor[:len(columns)-1]))
-                value_sensor.extend([0] * (len(columns) - 1 - len(value_sensor)))
+                value_sensor = list(map(float, value_sensor))
+                #value_sensor.extend([0] * (len(columns) - 1 - len(value_sensor)))
+                print(value_sensor)
 
-                waktu_sekarang = pd.Timestamp.now()
-                data = [waktu_sekarang] + value_sensor
+                df = pd.DataFrame([value_sensor], columns=columns)
+                #df[columns[0]] = df[columns[0]]
 
-                df = pd.DataFrame([data], columns=columns)
-                df[columns[0]] = df[columns[0]]
-                
-                df_all = pd.concat([df_all, df], ignore_index=True) if not df_all.empty else df.copy()
-                
-                set_plot_format(ax_all, "Grafik (V,I,R)-t", columns[0], "Nilai", columns[1:])
-                canvas_all.draw_idle()
-                
                 values = df.values.tolist()
                 values.insert(0, columns)
                 table_now.update_values(values)
 
         except Exception as e:
+            print("Exception at Plot Multimeter :", e)
             Arduino_label.configure(text=f"{e}")
             serial_port = None
 
-    root.after(500, plot_multimeter)
+    root.after(100, plot_multimeter)
 
 def reset_plot():
     global df_all, df_data
-    set_plot_format(ax_all, "Grafik (V,I,R)-t", columns[0], "Nilai", columns[1:], reset=True)
-    set_plot_format(ax_ampere, "Grafik V-R", columns[2], columns[3], columns[1], reset=True)
-    set_plot_format(ax_volt, "Grafik I-R", columns[1], columns[3], columns[2], reset=True)
-    set_plot_format(ax_resistance, "Grafik V-I", columns[2], columns[1], columns[3], reset=True)
-    
-    #update_plots()
-    canvas_all.draw()
+    set_plot_format(ax_ampere, "Grafik V-R", columns[1], columns[2], columns[0], reset=True)
+    set_plot_format(ax_volt, "Grafik I-R", columns[0], columns[2], columns[1], reset=True)
+    set_plot_format(ax_resistance, "Grafik V-I", columns[1], columns[0], columns[2], reset=True)
+
     canvas_ampere.draw()
     canvas_volt.draw()
     canvas_resistance.draw()
 
 def export_data():
     global df_all, df_data
-    import openpyxl
-    with pd.ExcelWriter("Data_Multimeter.xlsx", engine='openpyxl') as writer:
-        df_data.to_excel(writer, sheet_name="Data_Percobaan_Saat_Ini", index=False)
-        df_all.to_excel(writer, sheet_name="Data_Keseluruhan", index=False)
-        Arduino_label.configure(text="Data berhasil diekspor ke Data_Multimeter.xlsx")
+    if not df_all.empty:
+        with pd.ExcelWriter("Data_Multimeter.xlsx", engine='openpyxl') as writer:
+            df_data.to_excel(writer, sheet_name="Data_Percobaan_Saat_Ini", index=False)
+            df_all.to_excel(writer, sheet_name="Data_Keseluruhan", index=False)
+            # Mengatur lebar kolom agar sesuai dengan isi kolom
+            for sheet in writer.sheets:
+                worksheet = writer.sheets[sheet]
+                for idx, col in enumerate(worksheet.columns):
+                    max_length = 0
+                    column = col[0].column_letter
+                    for cell in col:
+                        try:
+                            if len(str(cell.value)) > max_length:
+                                max_length = len(cell.value)
+                        except:
+                            pass
+                    adjusted_width = (max_length + 2)
+                    worksheet.column_dimensions[column].width = adjusted_width
+            Arduino_label.configure(text="Data berhasil diekspor ke Data_Multimeter.xlsx")
+    else:
+        Arduino_label.configure(text="Tidak ada data yang diekspor")
+
 # --- GUI Initialization ---
 def initialize_gui():
     title_label = ctk.CTkLabel(frame_root, text="Multimeter Digital Arduino", justify="center", font=ctk.CTkFont('calibri', 32))
@@ -169,33 +167,30 @@ def initialize_gui():
     tabview.grid(column=0, row=0, sticky="nsew")
     tabview.rowconfigure(0, weight=1)
     tabview.columnconfigure(0, weight=1)
-    f0 = tabview.add("Grafik (V,I,R)-t")
     f1 = tabview.add("Grafik V-R")
     f2 = tabview.add("Grafik I-R")
     f3 = tabview.add("Grafik V-I")
     f4 = tabview.add("Data Percobaan")
     # Mengatur isi setiap tab menjadi responsif
-    for frame in [f0,f1, f2, f3, f4]:
+    for frame in [f1, f2, f3, f4]:
         frame.rowconfigure(0, weight=1)
         frame.columnconfigure(0, weight=1)
 
-    global fig_all, ax_all, canvas_all
     global fig_ampere, ax_ampere, canvas_ampere, fig_volt, ax_volt, canvas_volt
     global fig_resistance, ax_resistance, canvas_resistance
 
-    fig_all, ax_all, canvas_all = create_plot(f0)
     fig_ampere, ax_ampere, canvas_ampere = create_plot(f1)
     fig_volt, ax_volt, canvas_volt = create_plot(f2)
     fig_resistance, ax_resistance, canvas_resistance = create_plot(f3)
     reset_plot()
-    
+
     frame_table = ctk.CTkFrame(f4)
     frame_table.grid(column=0, row=0, sticky="nsew")
     frame_table.rowconfigure(0, weight=1)
     frame_table.columnconfigure(0, weight=1)
     global table
     table = CTkTable(master=frame_table, values=[columns], header_color="dark blue", width=128, padx=0, row=10,
-                     height=10, border_width=1, border_color="black",corner_radius=5)
+                        height=10, border_width=1, border_color="black",corner_radius=5)
     table.grid(column=0, row=0, sticky="nsew")
 
     export_button = ctk.CTkButton(frame_table, text="Ekspor Data", command=export_data)
@@ -213,7 +208,7 @@ def initialize_gui():
 
     connect_to_arduino()
     update_arduino_state()
-    root.after(500, plot_multimeter)
+    root.after(100, plot_multimeter)
 
 def create_plot(tab_name):
     frame = ctk.CTkFrame(tab_name)
@@ -223,7 +218,6 @@ def create_plot(tab_name):
     fig, ax = plt.subplots(constrained_layout=True)
     canvas = FigureCanvasTkAgg(fig, master=frame)
     canvas.get_tk_widget().grid(row=0, column=0, sticky="nsew")
-    # Mengatur canvas agar bisa diresize seperti frame dengan rowconfigure dan columnconfigure
     return fig, ax, canvas
 
 # --- Button Functions ---
@@ -232,6 +226,17 @@ def toggle_start_stop():
     plotting = not plotting
     start_stop_button.configure(text="Stop" if plotting else "Start")
     pause_resume_button.configure(state="normal" if plotting else "disabled")
+    # Reset data saat start
+    if plotting:
+        reset_plot()
+        global df_all, df_data
+        #df_all = pd.DataFrame(columns=columns)
+        df_data = pd.DataFrame(columns=columns)
+
+        # Mengatur ulang data pada tabel
+        table.update_values([columns])
+        table_now.update_values([columns])
+
 
 def toggle_pause_resume():
     global paused
@@ -252,3 +257,15 @@ frame_root.columnconfigure(0, weight=1)
 
 initialize_gui()
 root.mainloop()
+
+def on_closing():
+    root.after_cancel(update_arduino_state)  # Membatalkan task 1
+    root.after_cancel(plot_multimeter)  # Membatalkan task 2
+    root.destroy()
+
+print(root._window_exists)
+
+try:
+    root.protocol("WM_DELETE_WINDOW", on_closing)
+except:
+    exit(0)
